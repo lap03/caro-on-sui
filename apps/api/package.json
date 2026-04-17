@@ -1,0 +1,14 @@
+{
+  "name": "@caro/api",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run --watch src/index.ts"
+  },
+  "dependencies": {
+    "@mysten/enoki": "^1.0.4",
+    "@mysten/sui": "^2.15.0",
+    "hono": "^4.12.14"
+  }
+}

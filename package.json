@@ -1,0 +1,16 @@
+{
+  "name": "caro-on-sui",
+  "private": true,
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev": "bun --filter './apps/web' dev",
+    "dev:api": "bun --filter './apps/api' dev",
+    "build": "bun --filter './apps/web' build",
+    "test:move": "cd packages/move && sui move test",
+    "deploy:move": "bash scripts/deploy.sh",
+    "deploy:site": "bash scripts/deploy-walrus-site.sh"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}
