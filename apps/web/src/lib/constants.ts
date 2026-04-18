@@ -1,6 +1,11 @@
 // ===== Contract IDs =====
 // These will be updated after deploying the Move package to testnet
 export const PACKAGE_ID = import.meta.env.VITE_PACKAGE_ID || '0x0';
+// The original package id stays the same across `sui client upgrade`s. Use this
+// when building event-type filters or struct-tag references; use PACKAGE_ID
+// (published-at) when making move calls that should hit the latest bytecode.
+export const ORIGINAL_PACKAGE_ID =
+  import.meta.env.VITE_ORIGINAL_PACKAGE_ID || import.meta.env.VITE_PACKAGE_ID || '0x0';
 export const LEADERBOARD_ID = import.meta.env.VITE_LEADERBOARD_ID || '0x0';
 
 // ===== Network =====

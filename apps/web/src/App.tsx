@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom';
+import { Toaster } from 'sonner';
 import { LoginButton } from '@/components/auth/LoginButton';
 import { Home } from '@/pages/Home';
 import { Play } from '@/pages/Play';
@@ -67,6 +68,20 @@ export function App() {
             <Route path="/auth/callback" element={<AuthCallback />} />
           </Routes>
         </main>
+
+        <Toaster
+          position="top-right"
+          theme="dark"
+          richColors
+          closeButton
+          toastOptions={{
+            style: {
+              background: 'var(--color-surface)',
+              border: '1px solid var(--color-border)',
+              color: 'var(--color-text-primary)',
+            },
+          }}
+        />
       </div>
     </BrowserRouter>
   );

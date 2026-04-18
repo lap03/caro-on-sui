@@ -7,6 +7,7 @@ import {
   DIFFICULTY_LABELS,
 } from '@/lib/constants';
 import type { GameState } from '@/hooks/useGame';
+import { suiObjectUrl, suiAddressUrl, shortId } from '@/lib/explorer';
 
 interface GameStatusProps {
   gameState: GameState;
@@ -15,8 +16,24 @@ interface GameStatusProps {
   isLoading: boolean;
 }
 
+// Shared inline style for the explorer chips below
+const chipLinkStyle: React.CSSProperties = {
+  fontFamily: 'monospace',
+  fontSize: '0.72rem',
+  color: 'var(--color-accent-hover)',
+  textDecoration: 'none',
+  padding: '2px 8px',
+  borderRadius: '999px',
+  border: '1px solid var(--color-border)',
+  background: 'rgba(139, 92, 246, 0.06)',
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '4px',
+  transition: 'background 0.15s ease, border-color 0.15s ease',
+};
+
 export function GameStatus({ gameState, onNewGame, onResign, isLoading }: GameStatusProps) {
-  const { status, difficulty, moveCount } = gameState;
+  const { status, difficulty, moveCount, gameId, player } = gameState;
   const isGameOver = status !== STATUS_ACTIVE;
 
   return (
@@ -48,6 +65,56 @@ export function GameStatus({ gameState, onNewGame, onResign, isLoading }: GameSt
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ color: 'var(--color-text-secondary)', fontSize: '0.875rem' }}>AI Mark</span>
             <span style={{ color: 'var(--color-player-o)', fontWeight: 700, fontSize: '1.1rem' }}>○</span>
+          </div>
+
+          {/* ===== On-chain proof chips ===== */}
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.4rem',
+            marginTop: '0.35rem',
+            paddingTop: '0.6rem',
+            borderTop: '1px dashed var(--color-border)',
+          }}>
+            <div style={{
+              fontSize: '0.68rem',
+              color: 'var(--color-text-muted)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              fontWeight: 600,
+            }}>
+              On-chain
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ color: 'var(--color-text-secondary)', fontSize: '0.8rem' }}>Game ID</span>
+              <a
+                href={suiObjectUrl(gameId)}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={`Open ${gameId} on SuiVision`}
+                style={chipLinkStyle}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(139, 92, 246, 0.16)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(139, 92, 246, 0.06)'; }}
+              >
+                {shortId(gameId)}
+                <span style={{ fontSize: '0.7rem' }}>↗</span>
+              </a>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ color: 'var(--color-text-secondary)', fontSize: '0.8rem' }}>Player</span>
+              <a
+                href={suiAddressUrl(player)}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={`Open ${player} on SuiVision`}
+                style={chipLinkStyle}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(139, 92, 246, 0.16)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(139, 92, 246, 0.06)'; }}
+              >
+                {shortId(player)}
+                <span style={{ fontSize: '0.7rem' }}>↗</span>
+              </a>
+            </div>
           </div>
         </div>
       </div>

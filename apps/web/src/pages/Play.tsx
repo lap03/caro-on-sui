@@ -23,13 +23,14 @@ export function Play() {
     gameState,
     isLoading,
     error,
+    replaySaveStatus,
     createGame,
     play,
     resign,
     resetGame,
   } = game;
 
-  const [showNewGameDialog, setShowNewGameDialog] = useState(!gameState);
+  const [showNewGameDialog, setShowNewGameDialog] = useState(false);
   const [showResult, setShowResult] = useState(false);
   const [dismissedResult, setDismissedResult] = useState(false);
 
@@ -248,6 +249,7 @@ export function Play() {
           status={gameState.status}
           moveCount={gameState.moveCount}
           difficulty={gameState.difficulty}
+          replaySaveStatus={replaySaveStatus}
           onNewGame={handleNewGame}
           onClose={() => {
             setShowResult(false);

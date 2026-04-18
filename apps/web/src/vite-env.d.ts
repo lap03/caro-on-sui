@@ -5,6 +5,7 @@ interface ImportMetaEnv {
   readonly VITE_ENOKI_API_KEY: string;
   readonly VITE_GOOGLE_CLIENT_ID: string;
   readonly VITE_PACKAGE_ID: string;
+  readonly VITE_ORIGINAL_PACKAGE_ID: string;
   readonly VITE_LEADERBOARD_ID: string;
   readonly VITE_WALRUS_PUBLISHER: string;
   readonly VITE_WALRUS_AGGREGATOR: string;

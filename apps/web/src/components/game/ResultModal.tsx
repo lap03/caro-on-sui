@@ -1,9 +1,12 @@
 import { STATUS_PLAYER_WIN, STATUS_AI_WIN, STATUS_DRAW } from '@/lib/constants';
 
+export type ReplaySaveStatus = 'idle' | 'saving' | 'success' | 'error';
+
 interface ResultModalProps {
   status: number;
   moveCount: number;
   difficulty: number;
+  replaySaveStatus?: ReplaySaveStatus;
   onNewGame: () => void;
   onClose: () => void;
 }
@@ -14,7 +17,7 @@ function getDifficultyLabel(d: number): string {
   return 'Hard';
 }
 
-export function ResultModal({ status, moveCount, difficulty, onNewGame, onClose }: ResultModalProps) {
+export function ResultModal({ status, moveCount, difficulty, replaySaveStatus, onNewGame, onClose }: ResultModalProps) {
   const isWin = status === STATUS_PLAYER_WIN;
   const isDraw = status === STATUS_DRAW;
   const isLoss = status === STATUS_AI_WIN;
@@ -95,6 +98,69 @@ export function ResultModal({ status, moveCount, difficulty, onNewGame, onClose 
             </div>
           </div>
         </div>
+
+        {/* Replay save status */}
+        {replaySaveStatus && replaySaveStatus !== 'idle' && (
+          <div
+            className="animate-fade-in"
+            style={{
+              padding: '0.6rem 1rem',
+              borderRadius: '10px',
+              marginBottom: '1rem',
+              fontSize: '0.82rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.5rem',
+              background:
+                replaySaveStatus === 'success'
+                  ? 'rgba(52, 211, 153, 0.08)'
+                  : replaySaveStatus === 'error'
+                    ? 'rgba(244, 63, 94, 0.08)'
+                    : 'rgba(139, 92, 246, 0.08)',
+              border: `1px solid ${
+                replaySaveStatus === 'success'
+                  ? 'rgba(52, 211, 153, 0.25)'
+                  : replaySaveStatus === 'error'
+                    ? 'rgba(244, 63, 94, 0.25)'
+                    : 'rgba(139, 92, 246, 0.25)'
+              }`,
+              color:
+                replaySaveStatus === 'success'
+                  ? '#34d399'
+                  : replaySaveStatus === 'error'
+                    ? '#f87171'
+                    : 'var(--color-accent-hover)',
+            }}
+          >
+            {replaySaveStatus === 'saving' && (
+              <>
+                <span
+                  className="spinner"
+                  style={{
+                    width: '14px',
+                    height: '14px',
+                    borderColor: 'currentColor',
+                    borderTopColor: 'transparent',
+                  }}
+                />
+                <span>Saving replay to Walrus…</span>
+              </>
+            )}
+            {replaySaveStatus === 'success' && (
+              <>
+                <span>✓</span>
+                <span>Replay saved to Walrus &amp; anchored on-chain</span>
+              </>
+            )}
+            {replaySaveStatus === 'error' && (
+              <>
+                <span>⚠️</span>
+                <span>Failed to save replay — game result is still on-chain</span>
+              </>
+            )}
+          </div>
+        )}
 
         {/* NFT notice */}
         {isWin && (

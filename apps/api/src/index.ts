@@ -23,27 +23,70 @@ if (enokiSecretKey) {
     apiKey: enokiSecretKey,
   });
 
+  // Build the sponsorship allowlist from env. Accept multiple comma-separated
+  // package ids under PACKAGE_ID so a package upgrade doesn't break in-flight
+  // sessions that were loaded before the env bump.
+  const packageIds = (process.env.PACKAGE_ID || '')
+    .split(',')
+    .map((p) => p.trim())
+    .filter(Boolean);
+
+  const allowedMoveCallTargets = packageIds.flatMap((pkg) => [
+    `${pkg}::game::new_game`,
+    `${pkg}::game::play`,
+    `${pkg}::game::resign`,
+    `${pkg}::game::attach_replay`,
+    `${pkg}::leaderboard::record_result`,
+  ]);
+
+  console.log('🔑 Enoki allowlist:');
+  for (const t of allowedMoveCallTargets) console.log('   •', t);
+  if (allowedMoveCallTargets.length === 0) {
+    console.warn('   (empty — PACKAGE_ID env var is missing)');
+  }
+
   // Create a sponsored transaction
   app.post('/api/sponsor', async (c) => {
+    let sender = '?';
     try {
-      const { txKindBytes, sender } = await c.req.json();
+      const body = await c.req.json();
+      sender = body.sender;
 
       const sponsored = await enokiClient.createSponsoredTransaction({
         network: 'testnet',
-        transactionKindBytes: txKindBytes,
+        transactionKindBytes: body.txKindBytes,
         sender,
-        allowedMoveCallTargets: [
-          `${process.env.PACKAGE_ID}::game::new_game`,
-          `${process.env.PACKAGE_ID}::game::play`,
-          `${process.env.PACKAGE_ID}::game::resign`,
-          `${process.env.PACKAGE_ID}::leaderboard::record_result`,
-        ],
+        allowedMoveCallTargets,
       });
 
       return c.json(sponsored);
     } catch (error: any) {
-      console.error('Sponsor error:', error);
-      return c.json({ error: error.message }, 500);
+      // EnokiClientError exposes .errors[] + .code with the real reason.
+      // Without these we only see "Request to Enoki API failed (status: 400)".
+      const enokiErrors = error?.errors as { code: string; message: string; data?: unknown }[] | undefined;
+      const enokiCode = error?.code as string | undefined;
+      const enokiStatus = error?.status as number | undefined;
+      console.error('Sponsor error:', {
+        message: error?.message,
+        status: enokiStatus,
+        code: enokiCode,
+        errors: enokiErrors,
+        sender,
+        allowlist: allowedMoveCallTargets,
+      });
+      // Forward the most informative message possible.
+      const detail =
+        enokiErrors?.[0]?.message ??
+        error?.message ??
+        String(error);
+      return c.json(
+        {
+          error: detail,
+          code: enokiCode,
+          errors: enokiErrors,
+        },
+        500,
+      );
     }
   });
 
