@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Transaction } from '@mysten/sui/transactions';
 import { useSuiClient, useSignAndExecuteTransaction, useCurrentAccount } from '@mysten/dapp-kit';
 import {
@@ -35,6 +35,15 @@ export function useGame() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Restore game from localStorage on mount
+  useEffect(() => {
+    const savedGameId = localStorage.getItem('caro_active_game_id');
+    if (savedGameId) {
+      setIsLoading(true);
+      refreshGameState(savedGameId).finally(() => setIsLoading(false));
+    }
+  }, []); // refreshGameState is safe to omit or we can just use suiClient
+
   /**
    * Create a new game on-chain.
    */
@@ -49,6 +58,7 @@ export function useGame() {
 
     try {
       const tx = new Transaction();
+      tx.setSender(account.address);
       tx.moveCall({
         target: `${PACKAGE_ID}::game::new_game`,
         arguments: [
@@ -57,40 +67,43 @@ export function useGame() {
         ],
       });
 
-      await signAndExecute({
-        transaction: tx,
-      }, {
-        onSuccess: async (data) => {
-          // Fetch created game object from transaction effects
-          const txResult = await suiClient.waitForTransaction({
-            digest: data.digest,
-            options: {
-              showObjectChanges: true,
-              showEvents: true,
-            },
-          });
+      // Pre-build the transaction to resolve plugins using suiClient
+      // This is necessary because Enoki's wallet wrapper might not pass the client during signTransaction
+      const bytes = await tx.build({ client: suiClient });
 
-          // Find the created Game shared object
-          const gameObject = txResult.objectChanges?.find(
-            (change) => change.type === 'created' &&
-              change.objectType?.includes('::game::Game')
-          );
+      const result = await signAndExecute({
+        transaction: Transaction.from(bytes),
+      });
 
-          if (gameObject && gameObject.type === 'created') {
-            setGameState({
-              gameId: gameObject.objectId,
-              board: INITIAL_BOARD(),
-              moveCount: 0,
-              status: STATUS_ACTIVE,
-              difficulty,
-              moveHistory: [],
-              player: account.address,
-              lastPlayerMove: null,
-              lastAiMove: null,
-            });
-          }
+      // Await waitForTransaction instead of onSuccess to guarantee synchronous state update
+      const txResult = await suiClient.waitForTransaction({
+        digest: result.digest,
+        options: {
+          showObjectChanges: true,
+          showEvents: true,
         },
       });
+
+      const gameObject = txResult.objectChanges?.find(
+        (change) => change.type === 'created' &&
+          change.objectType?.includes('::game::Game')
+      );
+
+      if (gameObject && gameObject.type === 'created') {
+        const newState = {
+          gameId: gameObject.objectId,
+          board: INITIAL_BOARD(),
+          moveCount: 0,
+          status: STATUS_ACTIVE,
+          difficulty,
+          moveHistory: [],
+          player: account.address,
+          lastPlayerMove: null,
+          lastAiMove: null,
+        };
+        setGameState(newState);
+        localStorage.setItem('caro_active_game_id', gameObject.objectId);
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to create game');
       console.error('Create game error:', err);
@@ -124,6 +137,7 @@ export function useGame() {
 
     try {
       const tx = new Transaction();
+      tx.setSender(account.address);
       tx.moveCall({
         target: `${PACKAGE_ID}::game::play`,
         arguments: [
@@ -134,14 +148,14 @@ export function useGame() {
         ],
       });
 
-      await signAndExecute({
-        transaction: tx,
-      }, {
-        onSuccess: async (_data) => {
-          // Refresh game state from chain
-          await refreshGameState(gameState.gameId);
-        },
+      const bytes = await tx.build({ client: suiClient });
+
+      const result = await signAndExecute({
+        transaction: Transaction.from(bytes),
       });
+
+      await suiClient.waitForTransaction({ digest: result.digest });
+      await refreshGameState(gameState.gameId);
     } catch (err: any) {
       setError(err.message || 'Failed to play move');
       console.error('Play error:', err);
@@ -161,20 +175,23 @@ export function useGame() {
 
     try {
       const tx = new Transaction();
+      tx.setSender(account.address);
       tx.moveCall({
         target: `${PACKAGE_ID}::game::resign`,
         arguments: [tx.object(gameState.gameId)],
       });
 
-      await signAndExecute({
-        transaction: tx,
-      }, {
-        onSuccess: async () => {
-          setGameState((prev) =>
-            prev ? { ...prev, status: STATUS_AI_WIN } : null
-          );
-        },
+      const bytes = await tx.build({ client: suiClient });
+
+      const result = await signAndExecute({
+        transaction: Transaction.from(bytes),
       });
+
+      await suiClient.waitForTransaction({ digest: result.digest });
+      setGameState((prev) =>
+        prev ? { ...prev, status: STATUS_AI_WIN } : null
+      );
+      localStorage.removeItem('caro_active_game_id');
     } catch (err: any) {
       setError(err.message || 'Failed to resign');
     } finally {
@@ -220,6 +237,12 @@ export function useGame() {
           lastPlayerMove,
           lastAiMove,
         });
+
+        if (Number(fields.status) !== STATUS_ACTIVE) {
+          localStorage.removeItem('caro_active_game_id');
+        } else {
+          localStorage.setItem('caro_active_game_id', gameId);
+        }
       }
     } catch (err: any) {
       console.error('Refresh game state error:', err);
@@ -232,6 +255,7 @@ export function useGame() {
   const resetGame = useCallback(() => {
     setGameState(null);
     setError(null);
+    localStorage.removeItem('caro_active_game_id');
   }, []);
 
   return {

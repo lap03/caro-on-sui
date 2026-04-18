@@ -1,20 +1,23 @@
 import { useState } from 'react';
+import { useCurrentAccount } from '@mysten/dapp-kit';
 import { GameBoard } from '@/components/board/GameBoard';
 import { GameStatus } from '@/components/board/GameStatus';
 import { NewGameDialog } from '@/components/game/NewGameDialog';
 import { MoveHistory } from '@/components/game/MoveHistory';
 import { ResultModal } from '@/components/game/ResultModal';
 import { Confetti } from '@/components/game/Confetti';
-import { useLocalGame } from '@/hooks/useLocalGame';
+// import { useLocalGame } from '@/hooks/useLocalGame';
 import { PACKAGE_ID, STATUS_ACTIVE, STATUS_PLAYER_WIN } from '@/lib/constants';
-// import { useGame } from '@/hooks/useGame'; // Enable when contract is deployed
+import { useGame } from '@/hooks/useGame'; // Enable when contract is deployed
 
 export function Play() {
+  const account = useCurrentAccount();
+  
   // Use local game when contract is not deployed, on-chain game when it is
   const isContractDeployed = PACKAGE_ID !== '0x0';
-  // const onChainGame = useGame(); // Enable when contract is deployed
-  const localGame = useLocalGame();
-  const game = localGame; // Switch to onChainGame when deployed
+  const onChainGame = useGame(); // Enable when contract is deployed
+  // const localGame = useLocalGame();
+  const game = onChainGame; // Switch to onChainGame when deployed
 
   const {
     gameState,
@@ -38,7 +41,9 @@ export function Play() {
   };
 
   const handleCellClick = (row: number, col: number) => {
-    if (!isLoading && gameState) {
+    if (!isLoading && gameState && gameState.status === STATUS_ACTIVE) {
+      const idx = row * 15 + col;
+      if (gameState.board[idx] !== 0) return; // Prevent clicking occupied cells
       play(row, col);
     }
   };
@@ -57,6 +62,43 @@ export function Play() {
   }
 
   const isPlayerWin = gameState?.status === STATUS_PLAYER_WIN;
+
+  // Not connected
+  if (!account) {
+    return (
+      <div style={{
+        maxWidth: '600px',
+        margin: '0 auto',
+        padding: '4rem 1.5rem',
+        textAlign: 'center',
+      }}>
+        <div style={{ fontSize: '4rem', marginBottom: '1.5rem' }}>🔗</div>
+        <h2 style={{
+          fontFamily: 'var(--font-display)',
+          fontSize: '1.75rem',
+          fontWeight: 700,
+          marginBottom: '0.75rem',
+        }}>
+          Connect Your Wallet
+        </h2>
+        <p style={{
+          color: 'var(--color-text-secondary)',
+          fontSize: '1rem',
+          marginBottom: '2rem',
+          lineHeight: 1.6,
+        }}>
+          Connect your Sui wallet to start playing Caro On-Chain.
+          Your moves will be recorded as on-chain transactions.
+        </p>
+        <p style={{
+          color: 'var(--color-text-muted)',
+          fontSize: '0.85rem',
+        }}>
+          Use the wallet button in the top right corner to connect.
+        </p>
+      </div>
+    );
+  }
 
   // No active game — show dialog
   if (!gameState) {
