@@ -61,9 +61,11 @@ export function useGame() {
     // 1. Build only the transaction kind
     const txKindBytes = await tx.build({ client: suiClient, onlyTransactionKind: true });
     
-    // 2. Request sponsorship
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-    const sponsorRes = await fetch(`${apiUrl}/api/sponsor`, {
+    // 2. Request sponsorship.
+    // - Production (Vercel): VITE_API_URL unset → apiBase='' → same-origin `/api/sponsor`.
+    // - Local dev with Hono backend: set VITE_API_URL=http://localhost:3001.
+    const apiBase = import.meta.env.VITE_API_URL || '';
+    const sponsorRes = await fetch(`${apiBase}/api/sponsor`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -83,8 +85,8 @@ export function useGame() {
       transaction: Transaction.from(sponsored.bytes || sponsored.transactionBlockBytes),
     });
     
-    // 4. Execute the sponsored transaction
-    const executeRes = await fetch(`${apiUrl}/api/execute`, {
+    // 4. Execute the sponsored transaction (same base as step 2).
+    const executeRes = await fetch(`${apiBase}/api/execute`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

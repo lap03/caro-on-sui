@@ -1,12 +1,38 @@
 // ===== Contract IDs =====
 // These will be updated after deploying the Move package to testnet
-export const PACKAGE_ID = import.meta.env.VITE_PACKAGE_ID || '0x0';
+// Current v2 address (has the optimized AI). Hardcoded as a belt-and-suspenders
+// fallback: if Vite's stale env cache or any other layer hands us the old
+// pre-upgrade v1 address, we override to v2 so the frontend always calls the
+// gas-optimized bytecode. This is harmless when env already has v2 — the
+// override branch never triggers.
+const DEPLOYED_PACKAGE_V2 = '0x2e782bc7091ff59b95015eccb73936b535b2569326c35f37378700c27179b30e';
+const LEGACY_PACKAGE_V1 = '0x6a8f94dccfb84106e49130992826151e4d9bcb0be5268aebc5a57a9f78572e49';
+
+const envPkgId = import.meta.env.VITE_PACKAGE_ID || '0x0';
+export const PACKAGE_ID =
+  envPkgId === LEGACY_PACKAGE_V1 ? DEPLOYED_PACKAGE_V2 : envPkgId;
+
 // The original package id stays the same across `sui client upgrade`s. Use this
 // when building event-type filters or struct-tag references; use PACKAGE_ID
 // (published-at) when making move calls that should hit the latest bytecode.
+// For the current deployment, original-id IS v1 (LEGACY_PACKAGE_V1).
 export const ORIGINAL_PACKAGE_ID =
-  import.meta.env.VITE_ORIGINAL_PACKAGE_ID || import.meta.env.VITE_PACKAGE_ID || '0x0';
+  import.meta.env.VITE_ORIGINAL_PACKAGE_ID ||
+  LEGACY_PACKAGE_V1;
+
 export const LEADERBOARD_ID = import.meta.env.VITE_LEADERBOARD_ID || '0x0';
+
+// Boot-time log — so anyone can confirm which package version the browser is
+// actually talking to without typing `import.meta.env.*` in console (Vite
+// strips that in production bundles). If you see "⚠ overridden" below, your
+// Vite dev server is still serving stale env — restart it (Ctrl+C + re-run).
+const overridden = envPkgId === LEGACY_PACKAGE_V1;
+console.log(
+  `%c[caro] PACKAGE_ID = ${PACKAGE_ID}${overridden ? ' ⚠ overridden from stale v1' : ''}
+[caro] ORIGINAL_PACKAGE_ID = ${ORIGINAL_PACKAGE_ID}
+[caro] LEADERBOARD_ID = ${LEADERBOARD_ID}`,
+  'color:#8b5cf6;font-weight:bold',
+);
 
 // ===== Network =====
 export const SUI_NETWORK = (import.meta.env.VITE_SUI_NETWORK || 'testnet') as 'testnet' | 'mainnet' | 'devnet';
