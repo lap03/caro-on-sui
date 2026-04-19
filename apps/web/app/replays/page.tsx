@@ -41,6 +41,19 @@ export default function ReplaysPage() {
   const [currentStep, setCurrentStep] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [board, setBoard] = useState<number[]>(new Array(TOTAL_CELLS).fill(CELL_EMPTY));
+  const [page, setPage] = useState(0);
+
+  const PAGE_SIZE = 10;
+  const totalPages = Math.max(1, Math.ceil(replays.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages - 1);
+  const pagedReplays = useMemo(
+    () => replays.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE),
+    [replays, safePage],
+  );
+
+  useEffect(() => {
+    if (page >= totalPages) setPage(totalPages - 1);
+  }, [page, totalPages]);
 
   // Auto-refresh list when wallet connects/changes.
   useEffect(() => {
@@ -152,7 +165,7 @@ export default function ReplaysPage() {
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {replays.map((r) => {
+            {pagedReplays.map((r) => {
               const result = getResultLabel(r.status);
               return (
                 <button
@@ -255,6 +268,66 @@ export default function ReplaysPage() {
                 </button>
               );
             })}
+          </div>
+        )}
+
+        {replays.length > PAGE_SIZE && (
+          <div style={{
+            marginTop: '1.25rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '0.5rem',
+            flexWrap: 'wrap',
+          }}>
+            <button
+              onClick={() => setPage(0)}
+              disabled={safePage === 0}
+              className="btn-secondary"
+              style={{ padding: '0.4rem 0.7rem', fontSize: '0.8rem' }}
+              title="First page"
+            >
+              ⏮
+            </button>
+            <button
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              disabled={safePage === 0}
+              className="btn-secondary"
+              style={{ padding: '0.4rem 0.7rem', fontSize: '0.8rem' }}
+              title="Previous page"
+            >
+              ◀ Prev
+            </button>
+            <span style={{
+              padding: '0 0.75rem',
+              fontSize: '0.85rem',
+              color: 'var(--color-text-secondary)',
+              fontFamily: 'var(--font-display)',
+              fontWeight: 500,
+            }}>
+              Page {safePage + 1} / {totalPages}
+              <span style={{ color: 'var(--color-text-muted)', marginLeft: '0.5rem', fontSize: '0.78rem', fontWeight: 400 }}>
+                ({replays.length} total)
+              </span>
+            </span>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+              disabled={safePage >= totalPages - 1}
+              className="btn-secondary"
+              style={{ padding: '0.4rem 0.7rem', fontSize: '0.8rem' }}
+              title="Next page"
+            >
+              Next ▶
+            </button>
+            <button
+              onClick={() => setPage(totalPages - 1)}
+              disabled={safePage >= totalPages - 1}
+              className="btn-secondary"
+              style={{ padding: '0.4rem 0.7rem', fontSize: '0.8rem' }}
+              title="Last page"
+            >
+              ⏭
+            </button>
           </div>
         )}
 
