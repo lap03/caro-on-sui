@@ -4,30 +4,41 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "typecheck": "tsc --noEmit",
-    "preview": "vite preview"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@mysten/dapp-kit": "^1.0.4",
     "@mysten/enoki": "^1.0.4",
+    "@mysten/seal": "^0.7.0",
     "@mysten/sui": "^2.15.0",
+    "@radix-ui/react-avatar": "^1.1.1",
+    "@radix-ui/react-dialog": "^1.1.2",
+    "@radix-ui/react-scroll-area": "^1.2.1",
+    "@radix-ui/react-separator": "^1.1.1",
+    "@radix-ui/react-slot": "^1.1.1",
+    "@radix-ui/react-switch": "^1.1.2",
+    "@radix-ui/react-tabs": "^1.1.1",
     "@tanstack/react-query": "^5.99.0",
-    "lucide-react": "^1.8.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.468.0",
+    "next": "^15.1.3",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
-    "react-router-dom": "^7.14.1",
-    "sonner": "^2.0.7"
+    "sonner": "^2.0.7",
+    "tailwind-merge": "^2.5.5",
+    "tw-animate-css": "^1.2.9"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "^4.2.2",
+    "@tailwindcss/postcss": "^4.2.2",
+    "@types/node": "^22.10.5",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "@vercel/node": "^5.0.0",
-    "@vitejs/plugin-react": "^6.0.1",
+    "postcss": "^8.4.49",
     "tailwindcss": "^4.2.2",
-    "typescript": "^6.0.2",
-    "vite": "^8.0.8"
+    "typescript": "^5.7.0"
   }
 }

@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(sui client *)",
+      "Bash(bun outdated *)",
+      "Bash(bun install *)",
+      "Bash(bun run *)",
+      "Bash(curl -s http://localhost:3000 -o /dev/null -w \"status=%{http_code} time=%{time_total}\\\\n\")",
+      "Bash(wait)",
+      "WebFetch(domain:docs.enoki.mystenlabs.com)",
+      "WebSearch",
+      "WebFetch(domain:seal-docs.wal.app)",
+      "WebFetch(domain:github.com)"
+    ]
+  }
+}

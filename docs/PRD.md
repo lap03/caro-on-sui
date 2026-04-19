@@ -1,6 +1,23 @@
 # PRD: Caro On-Chain - Fully On-Chain Gomoku on Sui
 
-> **Hackathon submission** | Target: Sui Testnet | Version 1.0 | April 2026
+> **Hackathon submission** | Target: Sui Testnet | Version 1.1 | April 2026
+
+---
+
+## 0. Changelog
+
+### v1.1 — Next.js single-app architecture (current)
+
+The original v1.0 design shipped the frontend as a Vite SPA with a separate Hono backend at `apps/api` for Enoki sponsored-transaction relay. v1.1 collapses these into a **single Next.js 15 (App Router) application under `apps/web/`**:
+
+- Frontend is Next.js App Router (`apps/web/app/`), not Vite SPA.
+- Enoki `/api/sponsor` and `/api/execute` live as Next Route Handlers at `apps/web/app/api/sponsor/route.ts` and `apps/web/app/api/execute/route.ts`, served at the same origin as the UI in both `next dev` and Vercel.
+- **`apps/api` (Hono) is retired and deleted.** The Bun workspace no longer contains a backend app; Vercel deploys one project that builds both UI and serverless routes.
+- Env vars renamed `VITE_*` → `NEXT_PUBLIC_*`; server-only secrets (`ENOKI_SECRET_KEY`, `PACKAGE_ID`) stay unprefixed and live in `apps/web/.env` (+ Vercel project env).
+- Styling: Tailwind CSS v4 via `@tailwindcss/postcss` (dropped `@tailwindcss/vite`). shadcn/ui bootstrapped in `apps/web/components/ui/`.
+- Seal integration: `seal_policy.move` upgraded from placeholder to real `seal_approve`; `apps/web/lib/seal.ts` + `hooks/useSeal.ts` + a "Challenge Mode" toggle on `/play` encrypt each move before submit and round-trip it through the Seal key server for a `🔒 → ✅ Verified` badge.
+
+Sections below are written against the v1.1 architecture. Where v1.0 artifacts (Vite configs, Hono routes, `VITE_*` envs) still appear in code blocks, treat them as **historical reference only** — the running code uses the Next.js equivalents.
 
 ---
 
@@ -323,81 +340,63 @@ const decrypted = await sealClient.decrypt({
 | Layer | Technology | Version |
 |-------|-----------|---------|
 | **Monorepo** | Bun Workspace | latest |
-| **Frontend** | Vite + React + TypeScript | Vite 6, React 19 |
-| **UI** | Tailwind CSS v4 + shadcn/ui | latest |
+| **Framework** | Next.js 15 (App Router, RSC) | Next 15, React 19 |
+| **UI** | Tailwind CSS v4 (`@tailwindcss/postcss`) + shadcn/ui | latest |
 | **Sui SDK** | @mysten/sui, @mysten/dapp-kit | latest |
 | **Auth** | @mysten/enoki (zkLogin + sponsored tx) | latest |
 | **Storage** | @mysten/walrus (replays, avatars) | latest |
-| **Encryption** | @mysten/seal (commit-reveal) | latest |
+| **Encryption** | @mysten/seal (commit-reveal) | ^0.7 |
 | **Smart Contract** | Sui Move | Sui CLI latest |
-| **Backend** | Hono (lightweight, for Enoki sponsored tx relay) | latest |
-| **Deploy** | Walrus Sites (frontend), Sui Testnet (contracts) | testnet |
+| **Sponsored TX relay** | Next.js Route Handlers (`app/api/sponsor`, `app/api/execute`) — same-origin, Node runtime | built-in |
+| **Deploy** | Vercel (primary) / Walrus Sites (decentralized, stretch) | testnet |
 
 ### 5.3 Project Structure (Bun Workspace)
 
 ```
-chess-on-sui/
-├── package.json                 # Bun workspace root
+caro-on-sui/
+├── package.json                 # Bun workspace root (scripts: dev, build, test:move, deploy:*)
 ├── bun.lock
-├── turbo.json                   # Optional: Turborepo for build orchestration
 │
 ├── apps/
-│   ├── web/                     # Frontend (Vite + React)
-│   │   ├── package.json
-│   │   ├── vite.config.ts
-│   │   ├── tailwind.config.ts
-│   │   ├── components.json      # shadcn/ui config
-│   │   ├── index.html
-│   │   ├── .env.local           # VITE_ENOKI_API_KEY, VITE_PACKAGE_ID, etc.
-│   │   └── src/
-│   │       ├── main.tsx
-│   │       ├── App.tsx
-│   │       ├── components/
-│   │       │   ├── ui/          # shadcn/ui components (auto-generated)
-│   │       │   ├── board/
-│   │       │   │   ├── GameBoard.tsx       # 15x15 grid rendering
-│   │       │   │   ├── Cell.tsx            # Individual cell component
-│   │       │   │   └── GameStatus.tsx      # Win/lose/draw display
-│   │       │   ├── auth/
-│   │       │   │   ├── LoginButton.tsx     # Enoki social login
-│   │       │   │   └── WalletInfo.tsx      # Address display
-│   │       │   ├── game/
-│   │       │   │   ├── NewGameDialog.tsx   # Difficulty selector
-│   │       │   │   ├── MoveHistory.tsx     # Move list sidebar
-│   │       │   │   └── GameTimer.tsx       # Turn timer
-│   │       │   ├── replay/
-│   │       │   │   ├── ReplayViewer.tsx    # Step through past games
-│   │       │   │   └── ReplayList.tsx      # Browse replays from Walrus
-│   │       │   └── leaderboard/
-│   │       │       └── Leaderboard.tsx     # Top players
-│   │       ├── hooks/
-│   │       │   ├── useGame.ts              # Game state management
-│   │       │   ├── useEnoki.ts             # Auth helpers
-│   │       │   ├── useWalrus.ts            # Storage helpers
-│   │       │   └── useSeal.ts              # Commit-reveal helpers
-│   │       ├── lib/
-│   │       │   ├── sui.ts                  # Sui client setup
-│   │       │   ├── enoki.ts                # Enoki client config
-│   │       │   ├── walrus.ts               # Walrus client config
-│   │       │   ├── seal.ts                 # Seal client config
-│   │       │   ├── constants.ts            # Package IDs, object IDs
-│   │       │   └── utils.ts
-│   │       ├── pages/
-│   │       │   ├── Home.tsx
-│   │       │   ├── Play.tsx
-│   │       │   ├── Replay.tsx
-│   │       │   └── Leaderboard.tsx
-│   │       └── providers/
-│   │           └── SuiProvider.tsx          # dApp Kit + Enoki provider tree
-│   │
-│   └── api/                     # Backend API (Hono)
+│   └── web/                     # Next.js 15 App Router (frontend + API routes in one project)
 │       ├── package.json
-│       └── src/
-│           ├── index.ts                    # Hono server entry
-│           ├── routes/
-│           │   └── sponsor.ts              # Enoki sponsored tx endpoint
-│           └── lib/
-│               └── enoki.ts                # EnokiClient with secret key
+│       ├── next.config.ts       # transpilePackages: @mysten/*
+│       ├── postcss.config.mjs   # @tailwindcss/postcss
+│       ├── components.json      # shadcn/ui config
+│       ├── tsconfig.json
+│       ├── vercel.json          # thin — Vercel auto-detects Next
+│       ├── .env / .env.example  # NEXT_PUBLIC_* (public) + ENOKI_SECRET_KEY, PACKAGE_ID (server-only)
+│       ├── app/
+│       │   ├── layout.tsx              # root layout, Providers, nav shell, <Toaster>
+│       │   ├── providers.tsx           # 'use client' — QueryClient + SuiClientProvider + Enoki register + WalletProvider
+│       │   ├── nav.tsx                 # top nav (next/link + usePathname)
+│       │   ├── globals.css             # Tailwind v4 @import + @theme tokens + custom game CSS
+│       │   ├── page.tsx                # '/' (Home)
+│       │   ├── play/page.tsx           # '/play' (game board, Challenge Mode toggle)
+│       │   ├── replays/page.tsx        # '/replays' (Walrus replay list/viewer)
+│       │   ├── leaderboard/page.tsx    # '/leaderboard'
+│       │   ├── auth/callback/page.tsx  # '/auth/callback' (Enoki zkLogin redirect)
+│       │   └── api/
+│       │       ├── sponsor/route.ts    # POST /api/sponsor — Enoki createSponsoredTransaction
+│       │       └── execute/route.ts    # POST /api/execute — Enoki executeSponsoredTransaction
+│       ├── components/
+│       │   ├── ui/              # shadcn/ui primitives (button, card, badge, dialog, switch, separator, skeleton)
+│       │   ├── auth/LoginButton.tsx
+│       │   ├── board/{Cell,GameBoard,GameStatus}.tsx
+│       │   └── game/{NewGameDialog,MoveHistory,ResultModal,Confetti}.tsx
+│       ├── hooks/
+│       │   ├── useGame.ts              # on-chain game state + sponsored-tx helper
+│       │   ├── useLeaderboard.ts
+│       │   ├── useReplays.ts           # fetches ReplaySaved events + Walrus blobs
+│       │   ├── useLocalGame.ts         # local-only fallback (no contract required)
+│       │   └── useSeal.ts              # SessionKey lifecycle + encrypt/decrypt wrappers
+│       └── lib/
+│           ├── sui.ts                  # dApp Kit network config
+│           ├── constants.ts            # reads process.env.NEXT_PUBLIC_*; package ids, game constants
+│           ├── walrus.ts               # uploadReplay / fetchReplay via publisher/aggregator
+│           ├── seal.ts                 # SealClient + encryptMove/decryptMove/createSessionKey
+│           ├── explorer.ts             # suiObjectUrl / walrusBlobUrl helpers
+│           └── utils.ts                # cn() + game helpers (indexToPos, findWinningLine, …)
 │
 ├── packages/
 │   └── move/                    # Sui Move smart contracts
@@ -425,12 +424,11 @@ chess-on-sui/
 **Root `package.json`:**
 ```json
 {
-  "name": "chess-on-sui",
+  "name": "caro-on-sui",
   "private": true,
   "workspaces": ["apps/*", "packages/*"],
   "scripts": {
     "dev": "bun --filter './apps/web' dev",
-    "dev:api": "bun --filter './apps/api' dev",
     "build": "bun --filter './apps/web' build",
     "test:move": "cd packages/move && sui move test",
     "deploy:move": "bash scripts/deploy.sh",
@@ -441,6 +439,8 @@ chess-on-sui/
   }
 }
 ```
+
+> Note: The v1.0 `dev:api` script is removed — sponsored-transaction relay now runs inside Next.js route handlers and ships with the frontend. `bun run dev` is the only dev command.
 
 ---
 
@@ -1197,7 +1197,6 @@ bun init -y
 
 # 3. Create directory structure
 mkdir -p apps/web/src/{components/{ui,board,auth,game,replay,leaderboard},hooks,lib,pages,providers}
-mkdir -p apps/api/src/{routes,lib}
 mkdir -p packages/move/sources packages/move/tests
 mkdir -p scripts docs
 
@@ -1247,87 +1246,87 @@ bun add @tanstack/react-query
 cd ../..
 ```
 
-### Phase 2: Backend API Setup
+### Phase 2: Sponsored-Transaction Route Handlers (Next.js)
+
+The Enoki relay lives inside the Next.js app at `apps/web/app/api/`. No separate backend process — `next dev` serves these at `http://localhost:3000/api/sponsor` and `http://localhost:3000/api/execute`, and Vercel deploys them as serverless functions at the same paths on the production origin.
+
+**Env (in `apps/web/.env`, or Vercel project env — never ship to the browser):**
 
 ```bash
-cd apps/api
-bun init -y
-
-# Install dependencies
-bun add hono @mysten/enoki @mysten/sui
-
-# Create .env
-cat > .env << 'EOF'
 ENOKI_SECRET_KEY=enoki_private_xxxxx
-PACKAGE_ID=0x_YOUR_PACKAGE_ID
-SUI_NETWORK=testnet
-ALLOWED_ORIGINS=http://localhost:5173
-PORT=3001
-EOF
+# Comma-separated to support package-upgrade windows (new + legacy id both allowlisted).
+PACKAGE_ID=0xNEW,0xLEGACY
 ```
 
-**`apps/api/src/index.ts`:**
+**`apps/web/app/api/sponsor/route.ts`:**
 ```typescript
-import { Hono } from 'hono';
-import { cors } from 'hono/cors';
 import { EnokiClient } from '@mysten/enoki';
-import { toB64 } from '@mysten/sui/utils';
 
-const app = new Hono();
+export const runtime = 'nodejs';
 
-app.use('/*', cors({
-    origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:5173'],
-}));
+export async function POST(req: Request) {
+  const enokiSecretKey = process.env.ENOKI_SECRET_KEY;
+  if (!enokiSecretKey) {
+    return Response.json(
+      { error: 'Sponsored transactions not configured. Set ENOKI_SECRET_KEY.' },
+      { status: 503 },
+    );
+  }
 
-const enokiClient = new EnokiClient({
-    apiKey: process.env.ENOKI_SECRET_KEY!,
-});
+  const packageIds = (process.env.PACKAGE_ID || '')
+    .split(',')
+    .map((p) => p.trim())
+    .filter(Boolean);
 
-// Create a sponsored transaction
-app.post('/api/sponsor', async (c) => {
-    const { txKindBytes, sender } = await c.req.json();
+  const allowedMoveCallTargets = packageIds.flatMap((pkg) => [
+    `${pkg}::game::new_game`,
+    `${pkg}::game::play`,
+    `${pkg}::game::resign`,
+    `${pkg}::game::attach_replay`,
+    `${pkg}::leaderboard::record_result`,
+  ]);
 
+  try {
+    const { txKindBytes, sender } = (await req.json()) as { txKindBytes: string; sender: string };
+    const enokiClient = new EnokiClient({ apiKey: enokiSecretKey });
     const sponsored = await enokiClient.createSponsoredTransaction({
-        network: 'testnet',
-        transactionKindBytes: txKindBytes,
-        sender,
-        allowedMoveCallTargets: [
-            `${process.env.PACKAGE_ID}::game::new_game`,
-            `${process.env.PACKAGE_ID}::game::play`,
-            `${process.env.PACKAGE_ID}::game::resign`,
-            `${process.env.PACKAGE_ID}::leaderboard::record_result`,
-        ],
+      network: 'testnet',
+      transactionKindBytes: txKindBytes,
+      sender,
+      allowedMoveCallTargets,
     });
-
-    return c.json(sponsored);
-});
-
-// Execute a sponsored transaction
-app.post('/api/execute', async (c) => {
-    const { digest, signature } = await c.req.json();
-
-    const result = await enokiClient.executeSponsoredTransaction({
-        digest,
-        signature,
-    });
-
-    return c.json(result);
-});
-
-export default {
-    port: Number(process.env.PORT) || 3001,
-    fetch: app.fetch,
-};
-```
-
-**Add script to `apps/api/package.json`:**
-```json
-{
-  "scripts": {
-    "dev": "bun run --watch src/index.ts"
+    return Response.json(sponsored);
+  } catch (error: any) {
+    const enokiErrors = error?.errors as { code: string; message: string }[] | undefined;
+    const detail = enokiErrors?.[0]?.message ?? error?.message ?? String(error);
+    return Response.json({ error: detail, errors: enokiErrors }, { status: 500 });
   }
 }
 ```
+
+**`apps/web/app/api/execute/route.ts`:**
+```typescript
+import { EnokiClient } from '@mysten/enoki';
+
+export const runtime = 'nodejs';
+
+export async function POST(req: Request) {
+  const enokiSecretKey = process.env.ENOKI_SECRET_KEY;
+  if (!enokiSecretKey) {
+    return Response.json({ error: 'Sponsored transactions not configured.' }, { status: 503 });
+  }
+  try {
+    const { digest, signature } = (await req.json()) as { digest: string; signature: string };
+    const enokiClient = new EnokiClient({ apiKey: enokiSecretKey });
+    const result = await enokiClient.executeSponsoredTransaction({ digest, signature });
+    return Response.json(result);
+  } catch (error: any) {
+    return Response.json({ error: error?.message || String(error) }, { status: 500 });
+  }
+}
+```
+
+Why this is enough: the client's `useGame` hook calls `fetch('/api/sponsor', ...)` without a host, so it always hits the same origin — works in `next dev`, works on Vercel, and removes CORS entirely. No Hono, no second port, no cross-origin headers.
 
 ### Phase 3: Move Smart Contract
 
@@ -1386,7 +1385,7 @@ PACKAGE_ID=$(echo $RESULT | jq -r '.objectChanges[] | select(.type == "published
 echo "Package ID: $PACKAGE_ID"
 echo ""
 echo "Update your .env files with:"
-echo "  VITE_PACKAGE_ID=$PACKAGE_ID"
+echo "  NEXT_PUBLIC_PACKAGE_ID=$PACKAGE_ID"
 echo "  PACKAGE_ID=$PACKAGE_ID"
 ```
 
@@ -1399,8 +1398,8 @@ echo "  PACKAGE_ID=$PACKAGE_ID"
    - App name: "Caro On-Chain"
    - Network: Testnet
 4. You'll see two API keys:
-   - Public API Key -> copy to VITE_ENOKI_API_KEY in apps/web/.env.local
-   - Private API Key -> copy to ENOKI_SECRET_KEY in apps/api/.env
+   - Public API Key -> copy to NEXT_PUBLIC_ENOKI_API_KEY in apps/web/.env
+   - Private API Key -> copy to ENOKI_SECRET_KEY in apps/web/.env (and Vercel project env)
 
 5. Configure Auth Providers:
    a. Google:
@@ -1410,7 +1409,7 @@ echo "  PACKAGE_ID=$PACKAGE_ID"
       - Add Authorized redirect URIs: http://localhost:5173/auth
       - Copy the Client ID
       - In Enoki Portal, add Google provider with this Client ID
-      - Save as VITE_GOOGLE_CLIENT_ID in apps/web/.env.local
+      - Save as NEXT_PUBLIC_GOOGLE_CLIENT_ID in apps/web/.env
 
    b. Twitch (optional):
       - Go to https://dev.twitch.tv/console/apps
@@ -1433,28 +1432,29 @@ echo "  PACKAGE_ID=$PACKAGE_ID"
 ```bash
 cd apps/web
 
-# Create .env.local with all required values
-cat > .env.local << 'EOF'
-VITE_SUI_NETWORK=testnet
-VITE_ENOKI_API_KEY=enoki_public_xxxxx
-VITE_GOOGLE_CLIENT_ID=xxxxx.apps.googleusercontent.com
-VITE_PACKAGE_ID=0x_YOUR_DEPLOYED_PACKAGE_ID
-VITE_LEADERBOARD_ID=0x_YOUR_LEADERBOARD_OBJECT_ID
-VITE_WALRUS_PUBLISHER=https://publisher.walrus-testnet.walrus.space
-VITE_WALRUS_AGGREGATOR=https://aggregator.walrus-testnet.walrus.space
-VITE_SEAL_PACKAGE_ID=0x_YOUR_SEAL_POLICY_PACKAGE_ID
-VITE_SEAL_SERVER_OBJECT_ID=0xb012378c9f3799fb5b1a7083da74a4069e3c3f1c93de0b27212a5799ce1e1e98
-VITE_SEAL_AGGREGATOR_URL=https://seal-aggregator-testnet.mystenlabs.com
-VITE_API_URL=http://localhost:3001
+# Create apps/web/.env with all required values (see §13 for the full template).
+cat > .env << 'EOF'
+NEXT_PUBLIC_SUI_NETWORK=testnet
+NEXT_PUBLIC_ENOKI_API_KEY=enoki_public_xxxxx
+NEXT_PUBLIC_GOOGLE_CLIENT_ID=xxxxx.apps.googleusercontent.com
+NEXT_PUBLIC_PACKAGE_ID=0x_YOUR_DEPLOYED_PACKAGE_ID
+NEXT_PUBLIC_LEADERBOARD_ID=0x_YOUR_LEADERBOARD_OBJECT_ID
+NEXT_PUBLIC_WALRUS_PUBLISHER=https://publisher.walrus-testnet.walrus.space
+NEXT_PUBLIC_WALRUS_AGGREGATOR=https://aggregator.walrus-testnet.walrus.space
+NEXT_PUBLIC_SEAL_PACKAGE_ID=0x_YOUR_SEAL_POLICY_PACKAGE_ID
+NEXT_PUBLIC_SEAL_SERVER_OBJECT_ID=0xb012378c9f3799fb5b1a7083da74a4069e3c3f1c93de0b27212a5799ce1e1e98
+NEXT_PUBLIC_SEAL_AGGREGATOR_URL=https://seal-aggregator-testnet.mystenlabs.com
+NEXT_PUBLIC_SEAL_ENABLED=true
+ENOKI_SECRET_KEY=enoki_private_xxxxx
+PACKAGE_ID=0x_YOUR_DEPLOYED_PACKAGE_ID
 EOF
 
 # Start dev server
 bun run dev
 # -> Open http://localhost:5173
 
-# Start backend in parallel (separate terminal)
-cd apps/api && bun run dev
-# -> API running at http://localhost:3001
+# No separate backend needed. `next dev` serves /api/sponsor and /api/execute at
+# http://localhost:3000/api/* inside the same process as the UI.
 ```
 
 ### Phase 6: Walrus Integration
@@ -1625,7 +1625,7 @@ Both Walrus and Seal are fully usable on testnet and free for development. They 
 ## 10. Development Phases & Milestones
 
 ### Sprint 1: Core Game (Days 1-2)
-- [ ] Bun workspace scaffold (root + apps/web + apps/api + packages/move)
+- [ ] Bun workspace scaffold (root + apps/web + packages/move)
 - [ ] Move contract: `game.move` with basic AI (random only)
 - [ ] `sui move build && sui move test`
 - [ ] Deploy to testnet
@@ -1637,7 +1637,7 @@ Both Walrus and Seal are fully usable on testnet and free for development. They 
 ### Sprint 2: Enoki + AI (Days 3-4)
 - [ ] Enoki Portal setup (Google OAuth)
 - [ ] `registerEnokiWallets()` in frontend
-- [ ] Backend API: Sponsored transactions with Hono
+- [ ] Sponsored-tx relay: Next.js route handlers at `app/api/sponsor` + `app/api/execute`
 - [ ] Google zkLogin working end-to-end
 - [ ] Improved AI: weighted strategic moves (medium/hard difficulty)
 - [ ] Move history sidebar component
@@ -1693,44 +1693,46 @@ Both Walrus and Seal are fully usable on testnet and free for development. They 
 
 ## 13. Environment Variables Summary
 
-### Frontend (`apps/web/.env.local`)
+All env vars live in **one place**: `apps/web/.env` locally and the Vercel project env in production. `NEXT_PUBLIC_*` is inlined into the browser bundle; the unprefixed keys (`ENOKI_SECRET_KEY`, `PACKAGE_ID`) stay server-side and are only read inside `app/api/*/route.ts`.
+
+### `apps/web/.env` (combined frontend + server)
 ```bash
+# ===== Public (exposed to browser) =====
+
 # Sui
-VITE_SUI_NETWORK=testnet
+NEXT_PUBLIC_SUI_NETWORK=testnet
 
 # Enoki (public key only!)
-VITE_ENOKI_API_KEY=enoki_public_xxxxx
-VITE_GOOGLE_CLIENT_ID=xxxxx.apps.googleusercontent.com
+NEXT_PUBLIC_ENOKI_API_KEY=enoki_public_xxxxx
+NEXT_PUBLIC_GOOGLE_CLIENT_ID=xxxxx.apps.googleusercontent.com
 
 # Smart Contract
-VITE_PACKAGE_ID=0x...
-VITE_LEADERBOARD_ID=0x...
+NEXT_PUBLIC_PACKAGE_ID=0x...
+NEXT_PUBLIC_ORIGINAL_PACKAGE_ID=0x...
+NEXT_PUBLIC_LEADERBOARD_ID=0x...
 
 # Walrus
-VITE_WALRUS_PUBLISHER=https://publisher.walrus-testnet.walrus.space
-VITE_WALRUS_AGGREGATOR=https://aggregator.walrus-testnet.walrus.space
+NEXT_PUBLIC_WALRUS_PUBLISHER=https://publisher.walrus-testnet.walrus.space
+NEXT_PUBLIC_WALRUS_AGGREGATOR=https://aggregator.walrus-testnet.walrus.space
 
 # Seal
-VITE_SEAL_PACKAGE_ID=0x...
-VITE_SEAL_SERVER_OBJECT_ID=0xb012378c9f3799fb5b1a7083da74a4069e3c3f1c93de0b27212a5799ce1e1e98
-VITE_SEAL_AGGREGATOR_URL=https://seal-aggregator-testnet.mystenlabs.com
+NEXT_PUBLIC_SEAL_PACKAGE_ID=0x...
+NEXT_PUBLIC_SEAL_SERVER_OBJECT_ID=0xb012378c9f3799fb5b1a7083da74a4069e3c3f1c93de0b27212a5799ce1e1e98
+NEXT_PUBLIC_SEAL_AGGREGATOR_URL=https://seal-aggregator-testnet.mystenlabs.com
+NEXT_PUBLIC_SEAL_ENABLED=true
 
-# Backend API
-VITE_API_URL=http://localhost:3001
-```
+# Optional override. Leave unset to use same-origin /api/*. Set only if you point
+# the UI at a remote backend host (rare).
+# NEXT_PUBLIC_API_URL=
 
-### Backend (`apps/api/.env`)
-```bash
-# Enoki (PRIVATE key - never expose to frontend!)
+# ===== Server-only (do NOT prefix with NEXT_PUBLIC_) =====
+
+# Enoki PRIVATE key — consumed by app/api/sponsor/route.ts + app/api/execute/route.ts
 ENOKI_SECRET_KEY=enoki_private_xxxxx
 
-# Smart Contract
-PACKAGE_ID=0x...
-
-# Server
-SUI_NETWORK=testnet
-ALLOWED_ORIGINS=http://localhost:5173
-PORT=3001
+# Comma-separated to keep both the new + legacy package ids in the allowlist
+# during an upgrade window.
+PACKAGE_ID=0xNEW,0xLEGACY
 ```
 
 ---
@@ -1757,9 +1759,10 @@ PORT=3001
 | Satoshi Coin Flip | https://github.com/MystenLabs/satoshi-coin-flip |
 | Blackjack on Sui | https://github.com/MystenLabs/blackjack-sui |
 | shadcn/ui | https://ui.shadcn.com |
-| Hono | https://hono.dev |
 | Sui Testnet Faucet | https://faucet.testnet.sui.io |
 | Walrus Cost Calculator | https://costcalculator.wal.app |
+| Next.js App Router | https://nextjs.org/docs/app |
+| Vercel Deploy Next.js | https://vercel.com/docs/frameworks/nextjs |
 
 ---
 
