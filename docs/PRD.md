@@ -6,7 +6,16 @@
 
 ## 0. Changelog
 
-### v1.1 — Next.js single-app architecture (current)
+### v1.2 — Seal integration deferred (current)
+
+**Seal (encrypted commit-reveal / "Challenge Mode") is OUT OF SCOPE for the hackathon submission.**
+
+- Scope reasons: focus delivery on Enoki + Walrus + on-chain randomness; Seal testnet key server instability; encrypt/decrypt round-trip adds UX latency we don't want to ship.
+- Code left in place intentionally — `packages/move/sources/seal_policy.move`, `apps/web/lib/seal.ts`, `apps/web/hooks/useSeal.ts`, and the `NEXT_PUBLIC_SEAL_*` env vars remain so the setup context survives for a future re-enable. **Do not delete them.**
+- `NEXT_PUBLIC_SEAL_ENABLED` should be treated as `false` for the demo; the `/play` "Challenge Mode" toggle must not be shipped to judges.
+- All sections below that describe Seal (notably **§4.5**, **§6.3**, **§7.3 `useSeal`**, **§8 Phase 7**, **§9.2 / §9.3**, Sprint 3 Seal tasks, risk-mitigation/success-metrics rows) are kept for historical reference and are marked inline with `[OUT OF SCOPE — v1.2]`. Treat them as frozen design notes, not delivery targets.
+
+### v1.1 — Next.js single-app architecture
 
 The original v1.0 design shipped the frontend as a Vite SPA with a separate Hono backend at `apps/api` for Enoki sponsored-transaction relay. v1.1 collapses these into a **single Next.js 15 (App Router) application under `apps/web/`**:
 
@@ -15,7 +24,7 @@ The original v1.0 design shipped the frontend as a Vite SPA with a separate Hono
 - **`apps/api` (Hono) is retired and deleted.** The Bun workspace no longer contains a backend app; Vercel deploys one project that builds both UI and serverless routes.
 - Env vars renamed `VITE_*` → `NEXT_PUBLIC_*`; server-only secrets (`ENOKI_SECRET_KEY`, `PACKAGE_ID`) stay unprefixed and live in `apps/web/.env` (+ Vercel project env).
 - Styling: Tailwind CSS v4 via `@tailwindcss/postcss` (dropped `@tailwindcss/vite`). shadcn/ui bootstrapped in `apps/web/components/ui/`.
-- Seal integration: `seal_policy.move` upgraded from placeholder to real `seal_approve`; `apps/web/lib/seal.ts` + `hooks/useSeal.ts` + a "Challenge Mode" toggle on `/play` encrypt each move before submit and round-trip it through the Seal key server for a `🔒 → ✅ Verified` badge.
+- Seal integration `[OUT OF SCOPE — v1.2]`: `seal_policy.move` upgraded from placeholder to real `seal_approve`; `apps/web/lib/seal.ts` + `hooks/useSeal.ts` + a "Challenge Mode" toggle on `/play` encrypt each move before submit and round-trip it through the Seal key server for a `🔒 → ✅ Verified` badge. (Code retained, feature not shipped — see v1.2.)
 
 Sections below are written against the v1.1 architecture. Where v1.0 artifacts (Vite configs, Hono routes, `VITE_*` envs) still appear in code blocks, treat them as **historical reference only** — the running code uses the Next.js equivalents.
 
@@ -23,7 +32,7 @@ Sections below are written against the v1.1 architecture. Where v1.0 artifacts (
 
 ## 1. Executive Summary
 
-**Caro On-Chain** is a fully on-chain Gomoku (Caro/Five-in-a-Row) game built on the Sui blockchain where players compete against an AI opponent powered by Sui's native on-chain randomness. The game leverages **Enoki** for gasless social login (Google/Twitch), **Walrus** for decentralized storage of game replays and frontend hosting, and **Seal** for encrypted commit-reveal move mechanics.
+**Caro On-Chain** is a fully on-chain Gomoku (Caro/Five-in-a-Row) game built on the Sui blockchain where players compete against an AI opponent powered by Sui's native on-chain randomness. The game leverages **Enoki** for gasless social login (Google/Twitch) and **Walrus** for decentralized storage of game replays and frontend hosting. ~~**Seal** for encrypted commit-reveal move mechanics~~ `[OUT OF SCOPE — v1.2]`.
 
 **Tagline:** *"Play Caro against the blockchain itself - no wallet, no gas, fully on-chain."*
 
@@ -44,7 +53,7 @@ Sections below are written against the v1.1 architecture. Where v1.0 artifacts (
 | Game logic runs off-chain, results can be manipulated | 100% on-chain Move smart contract, verifiable game state |
 | AI opponents use centralized servers | AI uses Sui native randomness beacon (threshold BLS, unbiasable) |
 | Game history is lost | Walrus decentralized storage for permanent replay data |
-| No way to prove fair play | Seal encrypted commit-reveal for anti-cheat |
+| No way to prove fair play | Seal encrypted commit-reveal for anti-cheat `[OUT OF SCOPE — v1.2]` |
 
 ---
 
@@ -230,7 +239,9 @@ site-builder --context=testnet deploy ./apps/web/dist --epochs 50
 - Testnet is free for development
 - `site-builder` CLI deploys static sites (Vite `dist/` output) to Walrus
 
-### 4.5 Seal Integration (Encrypted Commit-Reveal)
+### 4.5 Seal Integration (Encrypted Commit-Reveal) `[OUT OF SCOPE — v1.2]`
+
+> **OUT OF SCOPE for the hackathon submission (v1.2).** This entire section is kept as frozen design notes — the `seal_policy.move` module, `apps/web/lib/seal.ts`, `hooks/useSeal.ts`, and related env vars remain in the codebase so setup context is preserved for a future re-enable. The "Challenge Mode" toggle must not be shipped. See §0 changelog v1.2.
 
 Seal enables a **commit-reveal** pattern for competitive fairness in a "Challenge Mode":
 
@@ -970,7 +981,10 @@ module caro::leaderboard {
 }
 ```
 
-### 6.3 Seal Policy Module: `seal_policy.move`
+### 6.3 Seal Policy Module: `seal_policy.move` `[OUT OF SCOPE — v1.2]`
+
+> Module source is retained in `packages/move/sources/seal_policy.move` for context. It compiles with the package but is not exercised by the shipped UI.
+
 
 ```move
 module caro::seal_policy {
@@ -1064,7 +1078,7 @@ function useWalrus() {
     // Uses HTTP publisher/aggregator endpoints
 }
 
-// useSeal.ts - Commit-reveal (Challenge Mode)
+// useSeal.ts - Commit-reveal (Challenge Mode) [OUT OF SCOPE — v1.2]
 function useSeal(gameId: string) {
     // Provides: sessionKey, isReady
     // Actions: commitMove(row, col) -> encryptedBytes
@@ -1503,7 +1517,9 @@ export async function loadReplay(blobId: string): Promise<any> {
 }
 ```
 
-### Phase 7: Seal Integration (Challenge Mode)
+### Phase 7: Seal Integration (Challenge Mode) `[OUT OF SCOPE — v1.2]`
+
+> Skip this phase for the hackathon submission. The helper file still exists at `apps/web/lib/seal.ts`; leave it untouched.
 
 **Frontend Seal helper (`src/lib/seal.ts`):**
 ```typescript
@@ -1604,7 +1620,10 @@ echo "Done! Site is live on Walrus."
 | Leaderboard snapshots | **Medium** | Periodic JSON dumps for historical analysis. Nice-to-have. |
 | Game assets (sprites/sounds) | **Low priority** | Can be bundled in the Walrus Site build. |
 
-### 9.2 Seal Feasibility
+### 9.2 Seal Feasibility `[OUT OF SCOPE — v1.2]`
+
+> Kept for reference — none of the rows below are delivery targets in v1.2.
+
 
 | Use Case | Feasibility | Notes |
 |----------|-------------|-------|
@@ -1615,10 +1634,10 @@ echo "Done! Site is live on Walrus."
 
 ### 9.3 Recommendation
 
-**Must have:** Walrus (replays + Walrus Sites) + Seal (commit-reveal Challenge Mode)
-**Nice to have:** Walrus (avatars) + Seal (fog-of-war variant)
+**Must have:** Walrus (replays + Walrus Sites). ~~Seal (commit-reveal Challenge Mode)~~ `[OUT OF SCOPE — v1.2]`
+**Nice to have:** Walrus (avatars). ~~Seal (fog-of-war variant)~~ `[OUT OF SCOPE — v1.2]`
 
-Both Walrus and Seal are fully usable on testnet and free for development. They significantly boost the hackathon submission by demonstrating deep Sui ecosystem integration.
+Walrus is fully usable on testnet and free for development. Seal was de-scoped in v1.2 (see §0 changelog) but the code scaffolding is preserved so it can be re-enabled later without re-implementing setup.
 
 ---
 
@@ -1648,8 +1667,8 @@ Both Walrus and Seal are fully usable on testnet and free for development. They 
 - [ ] Walrus: Save replay after game ends (PUT to publisher)
 - [ ] Walrus: Load and display replay (GET from aggregator)
 - [ ] Replay viewer with step-through controls
-- [ ] Seal: `seal_policy.move` deployed
-- [ ] Seal: Challenge Mode commit-reveal flow
+- [ ] ~~Seal: `seal_policy.move` deployed~~ `[OUT OF SCOPE — v1.2]`
+- [ ] ~~Seal: Challenge Mode commit-reveal flow~~ `[OUT OF SCOPE — v1.2]`
 - [ ] Leaderboard module + UI
 - [ ] Deploy frontend to Walrus Sites
 
@@ -1667,11 +1686,11 @@ Both Walrus and Seal are fully usable on testnet and free for development. They 
 
 | Criteria | How We Score |
 |----------|-------------|
-| **Technical Complexity** | Fully on-chain game logic with AI using native randomness; 4 Sui ecosystem integrations (Enoki, Walrus, Seal, sui::random) |
-| **Innovation** | Commit-reveal with Seal for provably fair AI gaming; wallet-less onboarding via Enoki zkLogin; AI opponent using on-chain randomness beacon |
+| **Technical Complexity** | Fully on-chain game logic with AI using native randomness; 3 Sui ecosystem integrations shipped (Enoki, Walrus, sui::random). ~~Seal~~ `[OUT OF SCOPE — v1.2]` |
+| **Innovation** | Wallet-less onboarding via Enoki zkLogin; AI opponent using on-chain randomness beacon. ~~Commit-reveal with Seal for provably fair AI gaming~~ `[OUT OF SCOPE — v1.2]` |
 | **User Experience** | Zero-friction: Google login, no gas, instant play. Modern UI with shadcn/ui. Mobile responsive. |
-| **Sui Ecosystem Usage** | Enoki (auth + gas sponsoring), Walrus (storage + decentralized hosting), Seal (encryption), sui::random (AI), shared objects, events, NFT results |
-| **Completeness** | Playable game, leaderboard, replays, 3 AI difficulties, commit-reveal mode, deployed on testnet + Walrus Sites |
+| **Sui Ecosystem Usage** | Enoki (auth + gas sponsoring), Walrus (storage + decentralized hosting), sui::random (AI), shared objects, events, NFT results. ~~Seal (encryption)~~ `[OUT OF SCOPE — v1.2]` |
+| **Completeness** | Playable game, leaderboard, replays, 3 AI difficulties, deployed on testnet + Walrus Sites. ~~commit-reveal mode~~ `[OUT OF SCOPE — v1.2]` |
 | **Code Quality** | Move unit tests, TypeScript types, clean Bun monorepo structure, separation of concerns |
 
 ---
@@ -1683,7 +1702,7 @@ Both Walrus and Seal are fully usable on testnet and free for development. They 
 | AI move gas cost too high on 15x15 board | High | Limit strategic scan depth; cap loop iterations. Fallback: reduce board to 11x11. Profile gas usage early. |
 | Enoki free tier limits | Low | Sandbox tier has unlimited testnet usage. Only mainnet has MAU caps. |
 | Walrus testnet data wipe | Low | Replays are enhancement, not core. Game works fully without Walrus. |
-| Seal testnet key server instability | Low | Commit-reveal is bonus Challenge Mode. Normal mode works without Seal. |
+| Seal testnet key server instability | N/A `[OUT OF SCOPE — v1.2]` | Resolved by de-scoping Seal entirely in v1.2. Normal mode works without Seal. |
 | Move compilation errors with `Random` | Medium | Strictly follow `entry fun` pattern. Move compiler gives clear errors. Test early. |
 | Board state too large for events | Low | `vector<u8>` with 225 elements = 225 bytes. Well within Sui limits. |
 | Google OAuth redirect issues | Medium | Test redirect URIs thoroughly. Support Sui Wallet as fallback auth. |
@@ -1715,11 +1734,12 @@ NEXT_PUBLIC_LEADERBOARD_ID=0x...
 NEXT_PUBLIC_WALRUS_PUBLISHER=https://publisher.walrus-testnet.walrus.space
 NEXT_PUBLIC_WALRUS_AGGREGATOR=https://aggregator.walrus-testnet.walrus.space
 
-# Seal
+# Seal — [OUT OF SCOPE — v1.2]. Keys retained so lib/seal.ts + useSeal.ts still compile.
+# Leave NEXT_PUBLIC_SEAL_ENABLED=false (or unset) for the hackathon demo.
 NEXT_PUBLIC_SEAL_PACKAGE_ID=0x...
 NEXT_PUBLIC_SEAL_SERVER_OBJECT_ID=0xb012378c9f3799fb5b1a7083da74a4069e3c3f1c93de0b27212a5799ce1e1e98
 NEXT_PUBLIC_SEAL_AGGREGATOR_URL=https://seal-aggregator-testnet.mystenlabs.com
-NEXT_PUBLIC_SEAL_ENABLED=true
+NEXT_PUBLIC_SEAL_ENABLED=false
 
 # Optional override. Leave unset to use same-origin /api/*. Set only if you point
 # the UI at a remote backend host (rare).
@@ -1774,7 +1794,7 @@ PACKAGE_ID=0xNEW,0xLEGACY
 | Google login working (Enoki) | Zero-gas UX, no wallet extension needed |
 | AI responds with randomness | 3 difficulty levels, provably fair via sui::random |
 | Replay saved to Walrus | Retrievable by blob ID, viewable in replay viewer |
-| Commit-reveal with Seal | Challenge Mode working with encrypted moves |
+| ~~Commit-reveal with Seal~~ `[OUT OF SCOPE — v1.2]` | ~~Challenge Mode working with encrypted moves~~ (deferred) |
 | Frontend on Walrus Sites | Fully decentralized hosting, accessible via .walrus.site |
 | Move unit tests passing | >80% coverage on game logic (win detection, AI, board ops) |
 | Mobile responsive | Playable on phone browser |
@@ -1783,4 +1803,4 @@ PACKAGE_ID=0xNEW,0xLEGACY
 
 ---
 
-*Built with Sui Move, Enoki, Walrus, and Seal for the Sui Hackathon 2026.*
+*Built with Sui Move, Enoki, and Walrus for the Sui Hackathon 2026.* (Seal scaffolded in-code but out-of-scope for v1.2 — see §0 changelog.)
